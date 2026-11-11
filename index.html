@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tool-Trace · Multiboard Holder Maker</title>
+<meta name="description" content="Photograph a tool, trace it, and download a 3D-printable holder STL that mounts on a Multiboard wall. Runs in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+      <rect x="1" y="1" width="32" height="32" rx="6" fill="var(--ink)"/>
+      <g fill="var(--panel)">
+        <path d="M6.3 4.5h3.4l1.8 1.8v3.4l-1.8 1.8H6.3L4.5 9.7V6.3zM22.3 4.5h3.4l1.8 1.8v3.4l-1.8 1.8h-3.4l-1.8-1.8V6.3zM6.3 20.5h3.4l1.8 1.8v3.4l-1.8 1.8H6.3l-1.8-1.8v-3.4zM22.3 20.5h3.4l1.8 1.8v3.4l-1.8 1.8h-3.4l-1.8-1.8v-3.4z"/>
+      </g>
+      <circle cx="17" cy="17" r="2.6" fill="var(--accent)"/>
+    </svg>
+    <div>
+      <h1>Tool-Trace</h1>
+      <p>Photo of a tool in, printable Multiboard holder STL out</p>
+    </div>
+  </div>
+  <nav class="rail" aria-label="Steps">
+    <button id="st1" data-step="1"><span class="n">1</span><span class="lbl">Photo</span></button>
+    <button id="st2" data-step="2"><span class="n">2</span><span class="lbl">Scale</span></button>
+    <button id="st3" data-step="3"><span class="n">3</span><span class="lbl">Outline</span></button>
+    <button id="st4" data-step="4"><span class="n">4</span><span class="lbl">Holder &amp; STL</span></button>
+  </nav>
+</header>
+
+<main>
+  <section class="stage" id="stage" aria-label="Workspace">
+    <canvas id="imgCanvas" aria-label="Photo and outline editor"></canvas>
+    <canvas id="glCanvas" aria-label="3D preview" style="display:none"></canvas>
+    <canvas id="layoutCanvas" aria-label="Layout drawing" style="display:none"></canvas>
+    <div class="hud" id="hud"></div>
+    <div class="tools" id="stageTools"></div>
+    <div class="help" id="stageHelp"></div>
+    <div class="viewtabs" id="viewTabs" style="display:none">
+      <div class="seg" role="tablist">
+        <button id="vBoard" class="on" role="tab">On the board</button>
+        <button id="vBed" role="tab">Print bed</button>
+        <button id="vLayout" role="tab">Layout</button>
+      </div>
+    </div>
+    <div class="busy" id="busy"><span id="busyText">Working…</span></div>
+    <div class="drop" id="drop">Drop the photo</div>
+  </section>
+
+  <aside class="sheet">
+    <!-- STEP 1 -->
+    <div class="panel" id="p1">
+      <div>
+        <h2>Photograph the tool</h2>
+        <p class="lead">Lay the tool flat and take one photo straight from above. The page traces it, scales it to millimetres, and builds a holder that clips onto a Multiboard.</p>
+      </div>
+      <div class="row">
+        <label class="btn primary file" for="fileIn">Choose a photo
+          <input type="file" id="fileIn" accept="image/*">
+        </label>
+        <button class="btn" id="btnSample">Load example</button>
+      </div>
+      <p class="hint">You can also drop an image anywhere on the workspace. Photos are processed in your browser and never uploaded.</p>
+      <div class="group">
+        <h3>Best results</h3>
+        <ol class="tips">
+          <li>Print the <a href="assets/calibration-mat-letter.pdf" download>calibration mat</a> at 100% scale and lay the tool inside the four black squares.</li>
+          <li>Shoot from directly above with the whole mat in frame. Use soft, even light and no flash, so shadows stay faint.</li>
+          <li>Dark or colourful tools on the white mat work best. For chrome or white tools, use a dark cloth with a ruler or card beside the tool, then pick “Reference line” in step 2.</li>
+        </ol>
+      </div>
+      <div class="group">
+        <h3>Calibration mat (PDF)</h3>
+        <div class="row">
+          <a class="btn" href="assets/calibration-mat-letter.pdf" download>US Letter PDF</a>
+          <a class="btn" href="assets/calibration-mat-a4.pdf" download>A4 PDF</a>
+        </div>
+        <p class="hint">Black and white only. Print at “Actual size” (not “Fit to page”), then check the 100 mm bar at the bottom with a ruler.</p>
+        <p class="status" id="matStatus"></p>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="panel" id="p2">
+      <div>
+        <h2>Set the scale</h2>
+        <p class="lead">Tell the page how big things are in the photo. The mat also corrects for a camera that wasn't perfectly overhead.</p>
+      </div>
+      <div class="seg" id="scaleSeg">
+        <button data-mode="mat" class="on">Calibration mat</button>
+        <button data-mode="line">Reference line</button>
+      </div>
+      <div id="scaleMat" class="group" style="border-top:0;padding-top:0">
+        <div class="field">
+          <label for="paper">Mat paper size</label><span></span>
+          <select id="paper" class="full"><option value="letter">US Letter (8.5 × 11 in)</option><option value="a4">A4 (210 × 297 mm)</option></select>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnDetect">Find the markers again</button>
+        </div>
+        <p class="status" id="detectStatus"></p>
+        <p class="hint">Drag the four orange crosshairs onto the centres of the black squares if any are off. Scroll or pinch to zoom.</p>
+        <details>
+          <summary>The 100 mm bar didn't print at exactly 100 mm</summary>
+          <p class="hint">Measure the distances between marker centres on your print and enter them here. Leave blank to use the nominal values.</p>
+          <div class="field" style="margin-top:8px">
+            <label for="measDx">Across (short side), mm</label><span></span>
+            <input type="number" id="measDx" class="full" step="0.1" min="50" max="400" placeholder="185.9">
+            <label for="measDy">Down (long side), mm</label><span></span>
+            <input type="number" id="measDy" class="full" step="0.1" min="50" max="400" placeholder="249.4">
+          </div>
+        </details>
+      </div>
+      <div id="scaleLine" class="group" style="display:none;border-top:0;padding-top:0">
+        <p class="hint">Drag the two ends of the line across something of known length in the photo, then enter that length. Put the reference on the same surface as the tool and shoot straight down.</p>
+        <div class="field">
+          <label for="refPreset">Reference</label><span></span>
+          <select id="refPreset" class="full">
+            <option value="85.6">Credit card, long edge (85.60 mm)</option>
+            <option value="53.98">Credit card, short edge (53.98 mm)</option>
+            <option value="24.26">US quarter, diameter (24.26 mm)</option>
+            <option value="100">Ruler, 100 mm</option>
+            <option value="custom">Something else (enter length)</option>
+          </select>
+          <label for="refLen">Length, mm</label><span></span>
+          <input type="number" id="refLen" class="full" step="0.01" min="1" value="85.6">
+        </div>
+      </div>
+      <div class="row"><button class="btn primary" id="btnApplyScale">Trace the tool</button></div>
+      <p class="status" id="scaleStatus"></p>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="panel" id="p3">
+      <div>
+        <h2>Check the outline</h2>
+        <p class="lead">The orange line becomes the pocket. Fix anything the camera got wrong, such as a shadow or a missed edge.</p>
+      </div>
+      <dl class="spec" id="outlineSpec"></dl>
+      <div class="group">
+        <h3>Automatic trace</h3>
+        <div class="seg" id="traceSeg">
+          <button data-method="standard" class="on">Standard</button>
+          <button data-method="ai">AI (SlimSAM)</button>
+        </div>
+        <p class="hint" id="aiNote">The AI trace downloads a ~25 MB model the first time (then it’s cached) and works best on busy backgrounds or low-contrast tools. It runs in your browser; the photo isn’t uploaded.</p>
+        <label class="toggle"><span>Snap edges to the photo (sub-pixel)</span><input type="checkbox" id="refineOn" checked></label>
+        <label class="toggle"><span>Ignore soft shadows</span><input type="checkbox" id="shadowOn" checked></label>
+        <div id="stdOpts" class="field">
+          <label for="thr">Sensitivity</label><span class="val" id="thrV"></span>
+          <input type="range" id="thr" min="10" max="300" step="1">
+          <p class="hint full">Move left to include faint parts of the tool, right to drop shadows and background.</p>
+        </div>
+        <label class="toggle"><span id="tapModeLabel">Tap the tool to select it</span><input type="checkbox" id="tapMode"></label>
+        <div id="aiOpts" style="display:none" class="row">
+          <div class="seg" id="tapSeg" style="flex:1">
+            <button data-label="1" class="on">+ Include</button>
+            <button data-label="0">− Exclude</button>
+          </div>
+          <button class="btn" id="btnClearTaps">Clear taps</button>
+        </div>
+        <div class="row"><button class="btn" id="btnRedetect">Trace again</button></div>
+        <p class="status" id="outlineStatus"></p>
+      </div>
+      <div class="group">
+        <h3>Edit points</h3>
+        <ul class="tips">
+          <li>Drag a point to move it.</li>
+          <li>Double-click (or double-tap) an edge to add a point.</li>
+          <li>Click a point and press Delete to remove it.</li>
+        </ul>
+        <div class="row">
+          <button class="btn" id="btnUndo">Undo</button>
+          <button class="btn" id="btnDelPt">Delete point</button>
+          <button class="btn" id="btnSmooth">Smooth</button>
+        </div>
+      </div>
+      <div class="row"><button class="btn primary" id="btnToDesign">Design the holder</button></div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="panel" id="p4">
+      <div>
+        <h2>Design the holder</h2>
+        <p class="lead">Changes rebuild the 3D model automatically. Everything is in millimetres on the 25 mm Multiboard grid.</p>
+      </div>
+      <div>
+        <h3>Holder type</h3>
+        <div class="cards three" id="modeCards">
+          <button class="card" data-mode="horizontal">
+            <svg viewBox="0 0 120 54" width="100%" height="44" aria-hidden="true"><rect x="2" y="2" width="8" height="50" fill="currentColor" opacity=".35"/><path d="M10 34h104v14H10z" fill="currentColor" opacity=".55"/><path d="M24 34c6-6 50-6 70 0" stroke="var(--accent)" stroke-width="5" fill="none" stroke-linecap="round"/></svg>
+            <b>Tray</b><span>A shelf with a tool-shaped pocket. The tool lies flat on top.</span>
+          </button>
+          <button class="card" data-mode="vertical">
+            <svg viewBox="0 0 120 54" width="100%" height="44" aria-hidden="true"><rect x="2" y="2" width="8" height="50" fill="currentColor" opacity=".35"/><rect x="10" y="26" width="22" height="26" fill="currentColor" opacity=".55"/><path d="M21 48V6" stroke="var(--accent)" stroke-width="5" stroke-linecap="round"/><rect x="30" y="34" width="5" height="8" fill="currentColor"/></svg>
+            <b>Vertical</b><span>The tool drops in from above and hangs upright.</span>
+          </button>
+          <button class="card" data-mode="flat">
+            <svg viewBox="0 0 120 54" width="100%" height="44" aria-hidden="true"><rect x="4" y="4" width="112" height="46" rx="3" fill="currentColor" opacity=".18"/><path d="M18 24h84" stroke="var(--accent)" stroke-width="7" stroke-linecap="round"/><path d="M30 29v9h10v-9M82 29v9h10v-9" stroke="currentColor" stroke-width="3" fill="none"/></svg>
+            <b>Flat on board</b><span>The tool hangs flat against the board, lying horizontally.</span>
+          </button>
+        </div>
+      </div>
+      <div class="group">
+        <h3>Tool</h3>
+        <div class="field">
+          <label for="thick">Tool thickness (measure it)</label><span class="val" id="thickV"></span>
+          <input type="number" id="thick" class="full" min="1" max="120" step="0.5">
+          <label for="rot">Rotate outline</label><span class="val" id="rotV"></span>
+          <input type="range" id="rot" min="-180" max="180" step="1">
+        </div>
+        <div class="row">
+          <button class="btn" id="rotL">↺ 90°</button>
+          <button class="btn" id="rotR">↻ 90°</button>
+          <button class="btn" id="rotAuto">Straighten</button>
+        </div>
+      </div>
+      <div class="group">
+        <h3>Mount to the board</h3>
+        <div class="mounts" id="mounts"></div>
+      </div>
+      <div class="group" id="flatGroup">
+        <h3>Flat-hanging style</h3>
+        <div class="seg" id="flatSeg">
+          <button data-style="hooks" class="on">Hooks</button>
+          <button data-style="ledge">Contour ledge</button>
+          <button data-style="clips">Shadow plate</button>
+        </div>
+        <p class="hint">Hooks: two or three support hooks with front lips. Contour ledge: a shelf that follows the bottom of the tool. Shadow plate: a recessed outline with snap clips.</p>
+        <div class="field">
+          <label for="standoff">Stand-off from the board</label><span class="val" id="standoffV"></span>
+          <input type="range" id="standoff" min="0" max="20" step="0.5">
+          <div class="full" id="hookWrap" style="display:contents">
+            <label for="hookCount">Number of hooks</label><span></span>
+            <select id="hookCount" class="full"><option value="auto">Automatic (2, or 3 for long tools)</option><option value="2">2</option><option value="3">3</option></select>
+          </div>
+          <div class="full" id="lipWrap" style="display:contents">
+            <label for="lipH">Front lip height</label><span class="val" id="lipHV"></span>
+            <input type="range" id="lipH" min="2" max="15" step="0.5">
+            <label for="seatT">Seat thickness</label><span class="val" id="seatTV"></span>
+            <input type="range" id="seatT" min="3" max="12" step="0.5">
+          </div>
+          <div class="full" id="recessWrap" style="display:contents">
+            <label for="recess">Recess depth</label><span class="val" id="recessV"></span>
+            <input type="range" id="recess" min="0" max="10" step="0.5">
+          </div>
+        </div>
+        <label class="toggle" id="engraveRow"><span>Engrave the tool’s silhouette on the plate</span><input type="checkbox" id="engrave" checked></label>
+      </div>
+      <div class="group">
+        <h3>Fit &amp; strength</h3>
+        <div class="field">
+          <label for="clear">Clearance around the tool</label><span class="val" id="clearV"></span>
+          <input type="range" id="clear" min="0.2" max="3" step="0.1">
+          <label for="wall">Wall thickness</label><span class="val" id="wallV"></span>
+          <input type="range" id="wall" min="1.6" max="8" step="0.2">
+          <div class="full" id="floorWrap" style="display:contents">
+            <label for="floor">Floor thickness</label><span class="val" id="floorV"></span>
+            <input type="range" id="floor" min="1.2" max="6" step="0.2">
+          </div>
+          <div class="full" id="pdWrap" style="display:contents">
+            <label for="pdepth">Pocket depth</label><span class="val" id="pdepthV"></span>
+            <input type="range" id="pdepth" min="2" max="60" step="0.5">
+          </div>
+          <div class="full" id="cpWrap" style="display:contents">
+            <label for="cpct">Cradle height (share of tool length)</label><span class="val" id="cpctV"></span>
+            <input type="range" id="cpct" min="20" max="100" step="5">
+          </div>
+          <label for="fit">Mount fit adjustment</label><span class="val" id="fitV"></span>
+          <input type="range" id="fit" min="-0.2" max="0.4" step="0.05">
+          <div class="full" id="boltWrap" style="display:contents">
+            <label for="bolth">Bolt hole diameter</label><span class="val" id="bolthV"></span>
+            <input type="range" id="bolth" min="22.6" max="24" step="0.1">
+          </div>
+        </div>
+        <p class="hint">Mount fit widens (+) or tightens (−) the mount features. Print the fit-test coupon to tune it.</p>
+        <label class="toggle"><span>Snap size to the 25 mm grid</span><input type="checkbox" id="grid"></label>
+      </div>
+      <div class="group" id="notchGroup">
+        <h3>Finger notch</h3>
+        <label class="toggle"><span>Add a finger notch</span><input type="checkbox" id="notchOn"></label>
+        <div class="field">
+          <label for="notchD">Notch diameter</label><span class="val" id="notchDV"></span>
+          <input type="range" id="notchD" min="12" max="40" step="1">
+        </div>
+        <p class="hint">Open the Layout view and click the pocket edge to move the notch.</p>
+      </div>
+      <div class="group" id="barGroup">
+        <h3>Retainer bar</h3>
+        <div class="field">
+          <label for="barPos">Bar height in the cradle</label><span class="val" id="barPosV"></span>
+          <input type="range" id="barPos" min="0" max="100" step="1">
+          <label for="barH">Bar width</label><span class="val" id="barHV"></span>
+          <input type="range" id="barH" min="5" max="25" step="1">
+        </div>
+        <p class="hint">The bar spans the front of the pocket so the tool can't tip out. Slide the tool in from the top.</p>
+      </div>
+      <div class="group">
+        <h3>Label</h3>
+        <div class="field">
+          <label for="labelText">Engraved text (optional)</label><span></span>
+          <input type="text" id="labelText" class="full" maxlength="28" placeholder="e.g. 13 mm wrench">
+          <label for="labelSize">Letter height</label><span class="val" id="labelSizeV"></span>
+          <input type="range" id="labelSize" min="4" max="14" step="0.5">
+        </div>
+      </div>
+      <div class="group">
+        <h3>Result</h3>
+        <dl class="spec" id="resultSpec"></dl>
+        <ul class="warnlist" id="warnList"></ul>
+      </div>
+      <div class="group">
+        <h3>Download</h3>
+        <div class="row">
+          <button class="btn primary" id="dlHolder">Download holder STL</button>
+          <button class="btn" id="dlCoupon">Fit-test coupon STL</button>
+        </div>
+        <p class="status" id="dlStatus"></p>
+        <p class="hint" id="dlHint"></p>
+      </div>
+      <details class="group">
+        <summary>Printing and mounting notes</summary>
+        <div id="printNotes" class="hint" style="display:flex;flex-direction:column;gap:8px"></div>
+      </details>
+    </div>
+  </aside>
+</main>
+<footer class="foot">
+  Tool-Trace runs entirely in your browser. Compatible with the <a href="https://multiboard.io">Multiboard</a> 25 mm grid system; not affiliated with Multiboard. Mount profiles: Multiconnect receiver as published by DavidD and QuackWorks; Multipoint uses the community “Multipoint Beta” profile, so print the fit-test coupon first. AI trace: <a href="https://huggingface.co/Xenova/slimsam-77-uniform">SlimSAM</a> via <a href="https://github.com/huggingface/transformers.js">Transformers.js</a>. <a href="NOTICE.md">Credits &amp; licences</a>.
+</footer>
+
+<script src="js/kernel.js"></script>
+<script src="js/builder.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
